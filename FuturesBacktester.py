@@ -3,7 +3,7 @@
 
 @Author: UePG
 
-@Version: 4.7
+@Version: 4.8
 @Date: 05/08/22
 
 @Reference: https://www.backtrader.com/
@@ -52,8 +52,10 @@ class Order:
         if self.type == "hold":
             return f"{self.dt} hold"
         else:
-            return f"{self.dt} {self.type} {abs(self.size)} {self.contract} at {self.execute}"
-
+            res = "{} {} {} {} at {}".format(
+                self.dt, self.type, abs(self.size), self.contract, self.execute
+            )
+            return res
 
 class Account:
     """
@@ -69,7 +71,7 @@ class Account:
         self.oi = pd.DataFrame()  # open interest detail
         self.logger = Logger()
 
-    def __completed(self):
+    def _completed(self):
         self.margin = np.sum(self.oi["margin"])
         self.cash = self.asset - self.margin
         self.position = self.margin / self.asset
@@ -87,7 +89,7 @@ class Account:
                 np.abs(self.oi["size"]) * self.oi["price"] * margin_ratio
             )
             self.asset += np.sum(self.oi["size"] * (self.oi["price"] - last_price))
-            self.__completed()
+            self._completed()
         self.logger.log_account(self)
 
     def updated_order(self, order: Order, margin_ratio: float):
@@ -160,7 +162,7 @@ class Account:
                 # really execute this order and log it
                 self.oi = oi
                 self.asset = asset
-                self.__completed()
+                self._completed()
                 self.logger.log_order(order)
 
 
@@ -172,7 +174,7 @@ class Logger:
     def __init__(self):
         self.df_account = pd.DataFrame()
         self.df_order = pd.DataFrame()
-        self.__mute = False
+        self._mute = False
 
     def log_account(self, account: Account):
         account_info = {
@@ -192,12 +194,12 @@ class Logger:
         )
 
         # print order
-        if not self.__mute:
+        if not self._mute:
             print(order)
 
     def toggle(self):
-        self.__mute = not self.__mute
-        if self.__mute:
+        self._mute = not self._mute
+        if self._mute:
             print("# logger mute")
         else:
             print("# logger unmute")
@@ -216,15 +218,15 @@ class Broker:
         multiplier: float,
         account: Account,
     ):
-        self.__margin_ratio = margin_ratio
-        self.__charge_ratio = charge_ratio
-        self.__slippage_ratio = slippage_ratio
-        self.__multiplier = multiplier
+        self._margin_ratio = margin_ratio
+        self._charge_ratio = charge_ratio
+        self._slippage_ratio = slippage_ratio
+        self._multiplier = multiplier
         self.account = account
         self.dt: datetime = None
         self.bar: pd.Series = None
 
-    def __accept_order(self, order: Order):
+    def _accept_order(self, order: Order):
         # add a sign to size
         if order.type == "sell":
             order.size = -order.size
@@ -257,43 +259,43 @@ class Broker:
             ):  # no corresponding quotation (0 or np.nan)
                 order.feasible = False
             else:
-                order.execute = order.quote * (1 + self.__slippage_ratio)
+                order.execute = order.quote * (1 + self._slippage_ratio)
                 order.amount = order.execute * abs(order.size)
-                order.charge = order.amount * self.__charge_ratio
-                order.margin = order.amount * self.__margin_ratio
+                order.charge = order.amount * self._charge_ratio
+                order.margin = order.amount * self._margin_ratio
 
-    def on_bar(self, dt: datetime, bar: pd.Series):
+    def _on_bar(self, dt: datetime, bar: pd.Series):
         self.dt = dt
         self.bar = bar
-        self.account.updated_bar(dt, bar, self.__margin_ratio)
+        self.account.updated_bar(dt, bar, self._margin_ratio)
 
     def buy(
         self, size: int = 1, contract: str = "default", label: str = "a1", **kwargs
     ):
         order = Order(
-            self.dt, "buy", size * self.__multiplier, label, contract, **kwargs
+            self.dt, "buy", size * self._multiplier, label, contract, **kwargs
         )
-        self.__accept_order(order)
-        self.account.updated_order(order, self.__margin_ratio)
+        self._accept_order(order)
+        self.account.updated_order(order, self._margin_ratio)
 
     def sell(
         self, size: int = 1, contract: str = "default", label: str = "b1", **kwargs
     ):
         order = Order(
-            self.dt, "sell", size * self.__multiplier, label, contract, **kwargs
+            self.dt, "sell", size * self._multiplier, label, contract, **kwargs
         )
-        self.__accept_order(order)
-        self.account.updated_order(order, self.__margin_ratio)
+        self._accept_order(order)
+        self.account.updated_order(order, self._margin_ratio)
 
     def close(self, contract: str = "default", label: str = None, **kwargs):
         order = Order(self.dt, "close", None, label, contract, **kwargs)
-        self.__accept_order(order)
-        self.account.updated_order(order, self.__margin_ratio)
+        self._accept_order(order)
+        self.account.updated_order(order, self._margin_ratio)
 
     def hold(self, **kwargs):
         order = Order(self.dt, "hold", 0, None, **kwargs)
-        self.__accept_order(order)
-        self.account.updated_order(order, self.__margin_ratio)
+        self._accept_order(order)
+        self.account.updated_order(order, self._margin_ratio)
 
 
 class Indicator:
@@ -302,37 +304,37 @@ class Indicator:
     """
 
     def __init__(self, name: str):
-        self.__name = name
+        self._name = name
 
     def __call__(self, df_account: pd.DataFrame):
         function_map = {
-            "acc_asset_net": self.__acc_asset_net,
-            "acc_unit_net": self.__acc_unit_net,
-            "acc_return": self.__acc_return,
-            "ann_return": self.__ann_return,
-            "ann_volatility": self.__ann_volatility,
-            "max_drawdown": self.__max_drawdown,
-            "sharpe": self.__sharpe,
-            "calmar": self.__calmar,
-            "sortino": self.__sortino,
+            "acc_asset_net": self._acc_asset_net,
+            "acc_unit_net": self._acc_unit_net,
+            "acc_return": self._acc_return,
+            "ann_return": self._ann_return,
+            "ann_volatility": self._ann_volatility,
+            "max_drawdown": self._max_drawdown,
+            "sharpe": self._sharpe,
+            "calmar": self._calmar,
+            "sortino": self._sortino,
         }
 
-        return function_map[self.__name](df_account)
+        return function_map[self._name](df_account)
 
     @staticmethod
-    def __acc_asset_net(df_account: pd.DataFrame):
+    def _acc_asset_net(df_account: pd.DataFrame):
         return np.array(df_account.asset)[-1]
 
     @staticmethod
-    def __acc_unit_net(df_account: pd.DataFrame):
+    def _acc_unit_net(df_account: pd.DataFrame):
         return np.array(df_account.asset)[-1] / np.array(df_account.asset)[0]
 
     @staticmethod
-    def __acc_return(df_account: pd.DataFrame):
+    def _acc_return(df_account: pd.DataFrame):
         return np.array(df_account.asset)[-1] - np.array(df_account.asset)[0]
 
     @staticmethod
-    def __ann_return(df_account: pd.DataFrame):
+    def _ann_return(df_account: pd.DataFrame):
         days = math.ceil(
             (np.array(df_account.dt)[-1] - np.array(df_account.dt)[0])
             / np.timedelta64(1, "D")
@@ -340,7 +342,7 @@ class Indicator:
         return np.log(Indicator("acc_unit_net")(df_account)) * (365 / days)
 
     @staticmethod
-    def __ann_volatility(df_account: pd.DataFrame):
+    def _ann_volatility(df_account: pd.DataFrame):
         days = math.ceil(
             (np.array(df_account.dt)[-1] - np.array(df_account.dt)[0])
             / np.timedelta64(1, "D")
@@ -350,24 +352,24 @@ class Indicator:
         )
 
     @staticmethod
-    def __max_drawdown(df_account: pd.DataFrame):
+    def _max_drawdown(df_account: pd.DataFrame):
         max_acc = np.maximum.accumulate(df_account.asset)
         return ((max_acc - df_account.asset) / max_acc).max()
 
     @staticmethod
-    def __sharpe(df_account: pd.DataFrame, r_f: float = 0.02):
+    def _sharpe(df_account: pd.DataFrame, r_f: float = 0.02):
         return (Indicator("ann_return")(df_account) - r_f) / Indicator(
             "ann_volatility"
         )(df_account)
 
     @staticmethod
-    def __calmar(df_account: pd.DataFrame):
+    def _calmar(df_account: pd.DataFrame):
         return Indicator("ann_return")(df_account) / Indicator("max_drawdown")(
             df_account
         )
 
     @staticmethod
-    def __sortino(df_account: pd.DataFrame, r_f: float = 0.02):
+    def _sortino(df_account: pd.DataFrame, r_f: float = 0.02):
         days = math.ceil(
             (np.array(df_account.dt)[-1] - np.array(df_account.dt)[0])
             / np.timedelta64(1, "D")
@@ -388,7 +390,7 @@ class Strategy:
     """
 
     def __init__(self, start_date: str, end_date: str, broker: Broker):
-        self.__itertools = itertools.count(0)  # iterator generator
+        self._itertools = itertools.count(0)  # iterator generator
         self.start_date = start_date
         self.end_date = end_date
         self.broker = broker
@@ -406,18 +408,18 @@ class Strategy:
             "max_drawdown": None,
             "sharpe": None,
             "calmar": None,
-            "sortino": None,
+            "sortino": None
         }
 
-    def __on_bar(self):
-        self.iter = next(self.__itertools)
+    def _on_bar(self):
+        self.iter = next(self._itertools)
         self.dt = self.index[self.iter]
-        self.bars = self.df_price.iloc[self.iter]
-        self.broker.on_bar(self.dt, self.bar)
+        self.bar = self.df_price.iloc[self.iter]
+        self.broker._on_bar(self.dt, self.bar)
 
     def set_params(self, **kwargs):
         """
-        Input parameters to the Strategy, such as window, threshold, etc.
+        Set parameters to the Strategy, such as window, threshold, etc.
         """
         # should not be overriden
         for arg_key in kwargs.keys():
@@ -425,7 +427,7 @@ class Strategy:
 
     def feed_data(self, df_price: pd.DataFrame, **kwargs):
         """
-        Input data to the Strategy for signal generation and trading simulation
+        Feed data to the Strategy for signal generation and trading simulation
         :param df_price: time series of available prices on bar (ex. close, a1, b1)
         """
         # should not be overriden
@@ -438,29 +440,25 @@ class Strategy:
         """
         Generate trading signals by using some parameters and data
         """
-        # must super() if overriden
         print("Preprocessing...")
 
     def prenext(self):
         """
         Logic when the Strategy is in buffer and signals can not be calculated
         """
-        # must super() if overriden
-        self.__on_bar()
+        self._on_bar()
 
     def next(self):
         """
         Logic when the Strategy is mature enough to really execute
         """
-        # must be overriden and must super()
-        self.__on_bar()
+        self._on_bar()
 
     def stop(self):
         """
         Logic when the Strategy is about to stop as data is near the end
         """
-        # must super() if overriden
-        self.__on_bar()
+        self._on_bar()
 
     def backtest(self, pre_iter: int, post_iter: int):
         """
@@ -468,7 +466,6 @@ class Strategy:
         :param pre_iter: iter between prenext() and next()
         :param post_iter: iter between next() and stop()
         """
-        # must super() if overriden
         print("Backtesting...")
 
         for _ in range(pre_iter):
@@ -478,11 +475,11 @@ class Strategy:
         for _ in range(len(self.index) - post_iter, len(self.index)):
             self.stop()
 
-    def analysis(self, output: str = False, suffix: str = None):
+    def analysis(self, output: str = False, remark: str = None):
         """
-        :param output: absolute path of the result directory
+        :param output: absolute path of the output directory
+        :param remark: remark for the output files
         """
-        # must super() if overriden
         # calculate indicators
         print("[Indicators]")
         for name in self.indicators.keys():
@@ -493,12 +490,12 @@ class Strategy:
 
         # output account log and order log
         if output:
-            if suffix:
+            if remark:
                 self.broker.account.logger.df_account.to_csv(
-                    output + f"df_account_{suffix}.csv"
+                    output + f"df_account_{remark}.csv"
                 )
                 self.broker.account.logger.df_order.to_csv(
-                    output + f"df_order_{suffix}.csv"
+                    output + f"df_order_{remark}.csv"
                 )
             else:
                 self.broker.account.logger.df_account.to_csv(output + "df_account.csv")
